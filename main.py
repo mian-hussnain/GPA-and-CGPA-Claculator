@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# ---------------- GPA Calculation (CUI Grading) ----------------
+# ---------------- GPA Logic (CUI Grading) ----------------
 def get_grade_info(percentage):
     if percentage >= 85:
         return "A", 4.00
@@ -62,7 +62,7 @@ st.set_page_config(page_title="CUI GPA & CGPA Calculator", layout="wide")
 st.markdown("""
 <style>
     .main-title {
-        font-size: 40px;
+        font-size: 38px;
         font-weight: 700;
         text-align: center;
         color: #003366;
@@ -71,66 +71,54 @@ st.markdown("""
     .sub-title {
         text-align: center;
         color: gray;
-        font-size: 18px;
-        margin-bottom: 30px;
+        font-size: 17px;
+        margin-bottom: 25px;
     }
     .result-box {
-        background-color: #f0f8ff;
-        padding: 25px;
+        background-color: #e8f4ff;
+        padding: 20px;
         border-radius: 15px;
         text-align: center;
         box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
         font-size: 22px;
         font-weight: 600;
+        margin-top: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🎓 CUI GPA & CGPA Calculator</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Calculate your GPA & CGPA according to COMSATS grading criteria</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Calculate semester-wise GPA and overall CGPA</div>', unsafe_allow_html=True)
 
-option = st.radio("Select Mode:", ["Calculate GPA", "Calculate CGPA"], horizontal=True)
+# ---------------- Main Input ----------------
+num_semesters = st.number_input("Enter number of semesters completed:", min_value=1, max_value=12, step=1)
 
-# ---------------- GPA Section ----------------
-if option == "Calculate GPA":
-    st.subheader("📘 GPA Calculator")
-    num_subjects = st.number_input("Enter number of subjects:", min_value=1, step=1)
+semester_gpas = []
+semester_credits = []
+
+for sem in range(1, int(num_semesters) + 1):
+    st.markdown(f"## 🏫 Semester {sem}")
+    num_subjects = st.number_input(f"Number of subjects in Semester {sem}:", min_value=1, step=1, key=f"sub_count_{sem}")
 
     marks, total_marks, credits = [], [], []
 
     for i in range(int(num_subjects)):
-        st.markdown(f"**Subject {i+1}**")
         col1, col2, col3 = st.columns(3)
         with col1:
-            marks.append(st.number_input(f"Marks Obtained", min_value=0, step=1, key=f"marks_{i}"))
+            marks.append(st.number_input(f"Marks (Sub {i+1})", min_value=0, step=1, key=f"marks_{sem}_{i}"))
         with col2:
-            total_marks.append(st.number_input(f"Total Marks", min_value=1, value=100, step=1, key=f"total_{i}"))
+            total_marks.append(st.number_input(f"Total Marks (Sub {i+1})", min_value=1, value=100, step=1, key=f"total_{sem}_{i}"))
         with col3:
-            credits.append(st.number_input(f"Credit Hours", min_value=1, step=1, key=f"credit_{i}"))
-        st.markdown("---")
+            credits.append(st.number_input(f"Credit Hours (Sub {i+1})", min_value=1, step=1, key=f"credit_{sem}_{i}"))
 
-    if st.button("Calculate GPA", use_container_width=True):
+    if st.button(f"Calculate GPA for Semester {sem}", key=f"btn_{sem}"):
         gpa, df = calculate_gpa(marks, total_marks, credits)
-        st.success("✅ GPA calculated successfully!")
+        semester_gpas.append(gpa)
+        semester_credits.append(sum(credits))
         st.dataframe(df, use_container_width=True)
-        st.markdown(f'<div class="result-box">📊 Your Semester GPA: {gpa}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="result-box">📘 Semester {sem} GPA: {gpa}</div>', unsafe_allow_html=True)
 
-# ---------------- CGPA Section ----------------
-else:
-    st.subheader("🏫 CGPA Calculator")
-    num_semesters = st.number_input("Enter number of semesters:", min_value=1, step=1)
-
-    gpas, sem_credits = [], []
-    for i in range(int(num_semesters)):
-        st.markdown(f"**Semester {i+1}**")
-        col1, col2 = st.columns(2)
-        with col1:
-            gpas.append(st.number_input(f"GPA", min_value=0.0, max_value=4.0, step=0.01, key=f"gpa_{i}"))
-        with col2:
-            sem_credits.append(st.number_input(f"Total Credit Hours", min_value=1, step=1, key=f"credits_{i}"))
-        st.markdown("---")
-
-    if st.button("Calculate CGPA", use_container_width=True):
-        cgpa = calculate_cgpa(gpas, sem_credits)
-        st.success("✅ CGPA calculated successfully!")
-        st.markdown(f'<div class="result-box">🎯 Your CGPA: {cgpa}</div>', unsafe_allow_html=True)
+# ---------------- CGPA Calculation ----------------
+if len(semester_gpas) > 0 and st.button("Calculate Overall CGPA", use_container_width=True):
+    cgpa = calculate_cgpa(semester_gpas, semester_credits)
+    st.markdown(f'<div class="result-box">🎯 Your Overall CGPA: {cgpa}</div>', unsafe_allow_html=True)
