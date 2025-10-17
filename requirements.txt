@@ -1,3 +1,4 @@
-streamlit 
-panda
+streamlit
+pandas
+openpyxl
 xlsxwriter
