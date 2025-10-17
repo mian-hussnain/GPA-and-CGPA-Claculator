@@ -1,149 +1,188 @@
 import streamlit as st
 import pandas as pd
-import io
+import plotly.graph_objects as go
 
-# ----------------------------------------------------------
-# PAGE CONFIG
-# ----------------------------------------------------------
-st.set_page_config(page_title="CUI GPA & CGPA Calculator", layout="wide")
+# ---------------------------------------------------------------
+# PAGE CONFIGURATION
+# ---------------------------------------------------------------
+st.set_page_config(page_title="🎓 GPA & CGPA Calculator", layout="wide")
 
-# Dark theme styling
+# Custom CSS Styling (Dark Mode + Accent)
 st.markdown("""
     <style>
-    body {background-color:#0E1117; color:#FAFAFA;}
-    .stApp {background-color:#0E1117;}
-    div[data-testid="stMetricValue"] {
-        font-size:28px; color:#4CAF50; font-weight:bold;
-    }
+        .main {
+            background-color: #0E1117;
+            color: #F5F5F5;
+        }
+        h1, h2, h3 {
+            color: #00FFCC;
+        }
+        .stTabs [role="tablist"] {
+            justify-content: center;
+        }
+        .stTabs [role="tab"] {
+            background: #1C1F26;
+            color: white;
+            border-radius: 10px;
+            padding: 10px 20px;
+            margin-right: 5px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #00FFCC !important;
+            color: #000000 !important;
+            font-weight: bold !important;
+        }
+        div[data-testid="stExpander"] {
+            background-color: #161A22;
+            border-radius: 10px;
+            border: 1px solid #00FFCC;
+            padding: 10px;
+        }
+        .stButton>button {
+            background-color: #00FFCC;
+            color: black;
+            border-radius: 10px;
+            font-weight: bold;
+        }
     </style>
 """, unsafe_allow_html=True)
 
-# ----------------------------------------------------------
-# HEADER
-# ----------------------------------------------------------
-st.title("🎓 CUI GPA & CGPA Calculator")
-st.caption("Based on the official **CUI / HEC Grading Criteria (Dec 7, 2020)**")
+# ---------------------------------------------------------------
+# HELPER FUNCTIONS
+# ---------------------------------------------------------------
+def calculate_grade_point(marks_obtained, total_marks):
+    """Convert percentage to grade points"""
+    percentage = (marks_obtained / total_marks) * 100
+    if percentage >= 85:
+        return 4.0
+    elif percentage >= 80:
+        return 3.7
+    elif percentage >= 75:
+        return 3.3
+    elif percentage >= 70:
+        return 3.0
+    elif percentage >= 65:
+        return 2.7
+    elif percentage >= 60:
+        return 2.3
+    elif percentage >= 55:
+        return 2.0
+    elif percentage >= 50:
+        return 1.7
+    else:
+        return 0.0
 
-# ----------------------------------------------------------
-# GRADE MAPPING FUNCTION
-# ----------------------------------------------------------
-def get_grade_point(percentage):
-    if percentage >= 85: return "A", 4.00
-    elif percentage >= 80: return "A-", 3.66
-    elif percentage >= 75: return "B+", 3.33
-    elif percentage >= 71: return "B", 3.00
-    elif percentage >= 68: return "B-", 2.66
-    elif percentage >= 64: return "C+", 2.33
-    elif percentage >= 61: return "C", 2.00
-    elif percentage >= 58: return "C-", 1.66
-    elif percentage >= 54: return "D+", 1.30
-    elif percentage >= 50: return "D", 1.00
-    else: return "F", 0.00
 
-# ----------------------------------------------------------
-# CALCULATION FUNCTIONS
-# ----------------------------------------------------------
-def calculate_semester_gpa(subject_data):
-    total_points, total_credits = 0, 0
-    for sub in subject_data:
-        total_points += sub["Grade Point"] * sub["Credit Hours"]
-        total_credits += sub["Credit Hours"]
+def calculate_gpa(marks, totals, credits):
+    """Calculate semester GPA"""
+    total_points = sum(calculate_grade_point(m, t) * c for m, t, c in zip(marks, totals, credits))
+    total_credits = sum(credits)
     if total_credits == 0:
         return 0
     return round(total_points / total_credits, 2)
 
-def calculate_cgpa(all_semesters):
-    total_points, total_credits = 0, 0
-    for sem in all_semesters:
-        total_points += sem["GPA"] * sem["Total Credits"]
-        total_credits += sem["Total Credits"]
+
+def calculate_cgpa(all_gpas, all_credits):
+    """Weighted average of all semester GPAs"""
+    total_weighted_points = sum(g * c for g, c in zip(all_gpas, all_credits))
+    total_credits = sum(all_credits)
     if total_credits == 0:
         return 0
-    return round(total_points / total_credits, 2)
+    return round(total_weighted_points / total_credits, 2)
 
-# ----------------------------------------------------------
-# USER INPUT SECTION
-# ----------------------------------------------------------
-st.subheader("📘 Enter Academic Details")
 
-current_sem = st.number_input("Enter your current semester (1–8):", min_value=1, max_value=8, step=1)
-all_semesters = []
+# ---------------------------------------------------------------
+# MAIN APP
+# ---------------------------------------------------------------
+st.title("🎓 GPA & CGPA Calculator (Dark Theme Edition)")
+st.markdown("Easily calculate GPA for each semester and your overall CGPA — with visual progress tracking!")
 
-# ----------------------------------------------------------
-# SEMESTER LOOP
-# ----------------------------------------------------------
-for sem in range(1, current_sem + 1):
-    with st.expander(f"🧾 Semester {sem} Details", expanded=(sem == current_sem)):
-        input_type = st.radio(
+num_semesters = st.number_input("Enter total number of semesters completed:", min_value=1, max_value=12, step=1)
+
+semester_gpas = []
+semester_credits = []
+
+for sem in range(1, num_semesters + 1):
+    with st.expander(f"📘 Semester {sem} Details", expanded=False):
+        entry_type = st.radio(
             f"How would you like to enter data for Semester {sem}?",
-            ("Enter subjects manually", "Enter GPA directly"),
-            key=f"input_type_{sem}"
+            ["Enter subjects manually", "Enter GPA directly"],
+            key=f"type_{sem}"
         )
 
-        if input_type == "Enter subjects manually":
-            num_subjects = st.number_input(
-                f"Number of subjects in Semester {sem}:",
-                min_value=1, step=1, key=f"subs_{sem}"
-            )
+        if entry_type == "Enter subjects manually":
+            num_subjects = st.number_input(f"Number of subjects in Semester {sem}:", min_value=1, step=1, key=f"subs_{sem}")
+            marks, totals, credits = [], [], []
 
-            subjects = []
-            for i in range(1, num_subjects + 1):
-                marks = st.number_input(f"Marks obtained (Subject {i})", 0.0, 100.0, key=f"m_{sem}_{i}")
-                total = st.number_input(f"Total marks (Subject {i})", 1.0, 100.0, value=100.0, key=f"t_{sem}_{i}")
-                credit = st.number_input(f"Credit hours (Subject {i})", 1.0, 5.0, key=f"c_{sem}_{i}")
-                
-                percentage = (marks / total) * 100
-                grade, gp = get_grade_point(percentage)
-                subjects.append({
-                    "Subject": f"Subject {i}",
-                    "Marks": f"{marks:.0f}/{int(total)}",
-                    "Percentage": f"{percentage:.2f}%",
-                    "Grade": grade,
-                    "Grade Point": gp,
-                    "Credit Hours": credit
-                })
+            for i in range(num_subjects):
+                st.markdown(f"**Subject {i+1}:**")
+                m = st.number_input(f"Marks obtained (Subject {i+1})", min_value=0.0, key=f"m_{sem}_{i}")
+                t = st.number_input(f"Total marks (Subject {i+1})", min_value=1.0, key=f"t_{sem}_{i}")
+                c = st.number_input(f"Credit hours (Subject {i+1})", min_value=1.0, key=f"c_{sem}_{i}")
+                marks.append(m)
+                totals.append(t)
+                credits.append(c)
 
-            df = pd.DataFrame(subjects)
-            st.dataframe(df, use_container_width=True)
-
-            sem_gpa = calculate_semester_gpa(subjects)
-            total_credits = sum([s["Credit Hours"] for s in subjects])
-            st.success(f"🎯 GPA for Semester {sem}: {sem_gpa}")
-
-            all_semesters.append({"Semester": sem, "GPA": sem_gpa, "Total Credits": total_credits})
+            gpa = calculate_gpa(marks, totals, credits)
+            total_credits = sum(credits)
+            st.success(f"📗 GPA for Semester {sem}: **{gpa}**")
+            semester_gpas.append(gpa)
+            semester_credits.append(total_credits)
 
         else:
-            # Direct GPA entry mode
-            gpa_direct = st.number_input(f"Enter GPA for Semester {sem}:", 0.0, 4.0, step=0.01, key=f"gpa_{sem}")
-            credits_direct = st.number_input(f"Total credit hours in Semester {sem}:", 1.0, 25.0, step=1.0, key=f"cr_{sem}")
-            st.info(f"✅ Recorded: GPA = {gpa_direct}, Credits = {credits_direct}")
-            all_semesters.append({"Semester": sem, "GPA": gpa_direct, "Total Credits": credits_direct})
+            gpa = st.number_input(f"Enter GPA for Semester {sem}:", min_value=0.0, max_value=4.0, key=f"gpa_{sem}")
+            total_credits = st.number_input(f"Enter total credit hours for Semester {sem}:", min_value=1.0, key=f"cred_{sem}")
+            semester_gpas.append(gpa)
+            semester_credits.append(total_credits)
 
-# ----------------------------------------------------------
-# CALCULATE & DISPLAY CGPA
-# ----------------------------------------------------------
-if st.button("📊 Calculate Overall CGPA"):
-    if all_semesters:
-        cgpa = calculate_cgpa(all_semesters)
-        st.markdown("---")
-        st.metric(label=f"🌟 Overall CGPA after Semester {current_sem}", value=f"{cgpa:.2f}")
+# ---------------------------------------------------------------
+# RESULTS SECTION
+# ---------------------------------------------------------------
+if st.button("🔹 Calculate Final CGPA"):
+    cgpa = calculate_cgpa(semester_gpas, semester_credits)
+    st.markdown("---")
+    st.subheader("📊 Results Summary")
 
-        sem_summary = pd.DataFrame(all_semesters)
-        st.dataframe(sem_summary, use_container_width=True)
+    # Create summary DataFrame
+    df = pd.DataFrame({
+        "Semester": [f"Semester {i+1}" for i in range(num_semesters)],
+        "GPA": semester_gpas,
+        "Credit Hours": semester_credits
+    })
+    df["Cumulative CGPA"] = [calculate_cgpa(semester_gpas[:i+1], semester_credits[:i+1]) for i in range(num_semesters)]
 
-        # --------------------------------------------------
-        # DOWNLOAD OPTION (EXCEL)
-        # --------------------------------------------------
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            sem_summary.to_excel(writer, index=False, sheet_name="CGPA Summary")
-        excel_data = output.getvalue()
+    st.dataframe(df, use_container_width=True)
 
-        st.download_button(
-            label="⬇️ Download CGPA Report (Excel)",
-            data=excel_data,
-            file_name=f"CUI_CGPA_Report_Sem{current_sem}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    else:
-        st.error("Please fill in at least one semester before calculating CGPA.")
+    st.metric(label="🎯 Final CGPA", value=cgpa)
+
+    # Trend detection
+    if len(semester_gpas) > 1:
+        if semester_gpas[-1] > semester_gpas[-2]:
+            st.success("📈 Great! Your GPA improved this semester.")
+        elif semester_gpas[-1] < semester_gpas[-2]:
+            st.warning("📉 Your GPA decreased this semester. Stay motivated and aim higher!")
+        else:
+            st.info("➖ Your GPA remained the same as last semester.")
+
+    # Plot GPA Trend
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[f"Sem {i+1}" for i in range(num_semesters)],
+        y=semester_gpas,
+        mode="lines+markers",
+        line=dict(color="#00FFCC", width=3),
+        marker=dict(size=10, color="#00FFFF"),
+        name="Semester GPA"
+    ))
+    fig.update_layout(
+        title="🎓 GPA Trend Across Semesters",
+        xaxis_title="Semester",
+        yaxis_title="GPA",
+        yaxis=dict(range=[0, 4.2]),
+        paper_bgcolor="#0E1117",
+        plot_bgcolor="#161A22",
+        font=dict(color="white")
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.balloons()
