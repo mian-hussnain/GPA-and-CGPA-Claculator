@@ -15,7 +15,6 @@ st.markdown("""
     div[data-testid="stMetricValue"] {
         font-size:28px; color:#4CAF50; font-weight:bold;
     }
-    .css-1v3fvcr {background-color:#1E1E1E;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -23,10 +22,10 @@ st.markdown("""
 # HEADER
 # ----------------------------------------------------------
 st.title("🎓 CUI GPA & CGPA Calculator")
-st.caption("Based on the official **CUI / HEC Grading Criteria** (Notification: Dec 7, 2020)")
+st.caption("Based on the official **CUI / HEC Grading Criteria (Dec 7, 2020)**")
 
 # ----------------------------------------------------------
-# GRADE MAPPING
+# GRADE MAPPING FUNCTION
 # ----------------------------------------------------------
 def get_grade_point(percentage):
     if percentage >= 85: return "A", 4.00
@@ -42,7 +41,7 @@ def get_grade_point(percentage):
     else: return "F", 0.00
 
 # ----------------------------------------------------------
-# HELPER FUNCTIONS
+# CALCULATION FUNCTIONS
 # ----------------------------------------------------------
 def calculate_semester_gpa(subject_data):
     total_points, total_credits = 0, 0
@@ -71,41 +70,54 @@ current_sem = st.number_input("Enter your current semester (1–8):", min_value=
 all_semesters = []
 
 # ----------------------------------------------------------
-# SEMESTER INPUT LOOP
+# SEMESTER LOOP
 # ----------------------------------------------------------
 for sem in range(1, current_sem + 1):
     with st.expander(f"🧾 Semester {sem} Details", expanded=(sem == current_sem)):
-        num_subjects = st.number_input(
-            f"Number of subjects in Semester {sem}:",
-            min_value=1, step=1, key=f"subs_{sem}"
+        input_type = st.radio(
+            f"How would you like to enter data for Semester {sem}?",
+            ("Enter subjects manually", "Enter GPA directly"),
+            key=f"input_type_{sem}"
         )
 
-        subjects = []
-        for i in range(1, num_subjects + 1):
-            marks = st.number_input(f"Marks obtained (Subject {i})", 0.0, 100.0, key=f"m_{sem}_{i}")
-            total = st.number_input(f"Total marks (Subject {i})", 1.0, 100.0, value=100.0, key=f"t_{sem}_{i}")
-            credit = st.number_input(f"Credit hours (Subject {i})", 1.0, 5.0, key=f"c_{sem}_{i}")
-            
-            percentage = (marks / total) * 100
-            grade, gp = get_grade_point(percentage)
-            subjects.append({
-                "Subject": f"Subject {i}",
-                "Marks": f"{marks:.0f}/{int(total)}",
-                "Percentage": f"{percentage:.2f}%",
-                "Grade": grade,
-                "Grade Point": gp,
-                "Credit Hours": credit
-            })
+        if input_type == "Enter subjects manually":
+            num_subjects = st.number_input(
+                f"Number of subjects in Semester {sem}:",
+                min_value=1, step=1, key=f"subs_{sem}"
+            )
 
-        # Show semester details table
-        df = pd.DataFrame(subjects)
-        st.dataframe(df, use_container_width=True)
+            subjects = []
+            for i in range(1, num_subjects + 1):
+                marks = st.number_input(f"Marks obtained (Subject {i})", 0.0, 100.0, key=f"m_{sem}_{i}")
+                total = st.number_input(f"Total marks (Subject {i})", 1.0, 100.0, value=100.0, key=f"t_{sem}_{i}")
+                credit = st.number_input(f"Credit hours (Subject {i})", 1.0, 5.0, key=f"c_{sem}_{i}")
+                
+                percentage = (marks / total) * 100
+                grade, gp = get_grade_point(percentage)
+                subjects.append({
+                    "Subject": f"Subject {i}",
+                    "Marks": f"{marks:.0f}/{int(total)}",
+                    "Percentage": f"{percentage:.2f}%",
+                    "Grade": grade,
+                    "Grade Point": gp,
+                    "Credit Hours": credit
+                })
 
-        # Calculate GPA
-        sem_gpa = calculate_semester_gpa(subjects)
-        total_credits = sum([s["Credit Hours"] for s in subjects])
-        all_semesters.append({"Semester": sem, "GPA": sem_gpa, "Total Credits": total_credits})
-        st.success(f"🎯 GPA for Semester {sem}: {sem_gpa}")
+            df = pd.DataFrame(subjects)
+            st.dataframe(df, use_container_width=True)
+
+            sem_gpa = calculate_semester_gpa(subjects)
+            total_credits = sum([s["Credit Hours"] for s in subjects])
+            st.success(f"🎯 GPA for Semester {sem}: {sem_gpa}")
+
+            all_semesters.append({"Semester": sem, "GPA": sem_gpa, "Total Credits": total_credits})
+
+        else:
+            # Direct GPA entry mode
+            gpa_direct = st.number_input(f"Enter GPA for Semester {sem}:", 0.0, 4.0, step=0.01, key=f"gpa_{sem}")
+            credits_direct = st.number_input(f"Total credit hours in Semester {sem}:", 1.0, 25.0, step=1.0, key=f"cr_{sem}")
+            st.info(f"✅ Recorded: GPA = {gpa_direct}, Credits = {credits_direct}")
+            all_semesters.append({"Semester": sem, "GPA": gpa_direct, "Total Credits": credits_direct})
 
 # ----------------------------------------------------------
 # CALCULATE & DISPLAY CGPA
@@ -123,10 +135,8 @@ if st.button("📊 Calculate Overall CGPA"):
         # DOWNLOAD OPTION (EXCEL)
         # --------------------------------------------------
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             sem_summary.to_excel(writer, index=False, sheet_name="CGPA Summary")
-            for sem in range(1, current_sem + 1):
-                writer.sheets["CGPA Summary"].set_column("A:C", 20)
         excel_data = output.getvalue()
 
         st.download_button(
