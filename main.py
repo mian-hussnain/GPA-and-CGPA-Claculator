@@ -132,4 +132,58 @@ for sem in range(1, num_semesters + 1):
 
         else:
             gpa = st.number_input(f"Enter GPA for Semester {sem}:", min_value=0.0, max_value=4.0, key=f"gpa_{sem}")
-            total_credits = st.number_input(f"Enter total credit hours for Sem
+            total_credits = st.number_input(f"Enter total credit hours for Semester {sem}:", min_value=1.0, key=f"cred_{sem}")
+            semester_gpas.append(gpa)
+            semester_credits.append(total_credits)
+
+# ---------------------------------------------------------------
+# RESULTS SECTION
+# ---------------------------------------------------------------
+if st.button("🔹 Calculate Final CGPA"):
+    cgpa = calculate_cgpa(semester_gpas, semester_credits)
+    st.markdown("---")
+    st.subheader("📊 Results Summary")
+
+    # Create summary DataFrame
+    df = pd.DataFrame({
+        "Semester": [f"Semester {i+1}" for i in range(num_semesters)],
+        "GPA": semester_gpas,
+        "Credit Hours": semester_credits
+    })
+    df["Cumulative CGPA"] = [calculate_cgpa(semester_gpas[:i+1], semester_credits[:i+1]) for i in range(num_semesters)]
+
+    st.dataframe(df, use_container_width=True)
+
+    st.metric(label="🎯 Final CGPA", value=cgpa)
+
+    # Trend detection
+    if len(semester_gpas) > 1:
+        if semester_gpas[-1] > semester_gpas[-2]:
+            st.success("📈 Great! Your GPA improved this semester.")
+        elif semester_gpas[-1] < semester_gpas[-2]:
+            st.warning("📉 Your GPA decreased this semester. Stay motivated and aim higher!")
+        else:
+            st.info("➖ Your GPA remained the same as last semester.")
+
+    # Plot GPA Trend
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=[f"Sem {i+1}" for i in range(num_semesters)],
+        y=semester_gpas,
+        mode="lines+markers",
+        line=dict(color="#00FFCC", width=3),
+        marker=dict(size=10, color="#00FFFF"),
+        name="Semester GPA"
+    ))
+    fig.update_layout(
+        title="🎓 GPA Trend Across Semesters",
+        xaxis_title="Semester",
+        yaxis_title="GPA",
+        yaxis=dict(range=[0, 4.2]),
+        paper_bgcolor="#0E1117",
+        plot_bgcolor="#161A22",
+        font=dict(color="white")
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.balloons()
