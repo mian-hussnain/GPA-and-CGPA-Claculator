@@ -2,187 +2,184 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-# ---------------------------------------------------------------
-# PAGE CONFIGURATION
-# ---------------------------------------------------------------
+# -----------------------------
+# GPA & CGPA Calculation Logic
+# -----------------------------
+def calculate_gpa(marks, total_marks, credits):
+    total_points = 0
+    total_credits = 0
+    for mark, total, credit in zip(marks, total_marks, credits):
+        percentage = (mark / total) * 100
+        # GPA scale
+        if percentage >= 90:
+            grade_point = 4.0
+        elif percentage >= 85:
+            grade_point = 3.7
+        elif percentage >= 80:
+            grade_point = 3.3
+        elif percentage >= 75:
+            grade_point = 3.0
+        elif percentage >= 70:
+            grade_point = 2.7
+        elif percentage >= 65:
+            grade_point = 2.3
+        elif percentage >= 60:
+            grade_point = 2.0
+        elif percentage >= 50:
+            grade_point = 1.5
+        else:
+            grade_point = 0.0
+
+        total_points += grade_point * credit
+        total_credits += credit
+
+    return round(total_points / total_credits, 2) if total_credits != 0 else 0
+
+
+def calculate_cgpa(gpas, credits_list):
+    total_points = sum(g * c for g, c in zip(gpas, credits_list))
+    total_credits = sum(credits_list)
+    return round(total_points / total_credits, 2) if total_credits != 0 else 0
+
+
+# -----------------------------
+# Streamlit Page Config
+# -----------------------------
 st.set_page_config(page_title="🎓 GPA & CGPA Calculator", layout="wide")
 
-# Custom CSS Styling (Dark Mode + Accent)
+# Dark Theme Styling
 st.markdown("""
     <style>
-        .main {
-            background-color: #0E1117;
-            color: #F5F5F5;
+        body {
+            background-color: #0e1117;
+            color: #fafafa;
         }
-        h1, h2, h3 {
-            color: #00FFCC;
+        .stApp {
+            background-color: #0e1117;
         }
-        .stTabs [role="tablist"] {
-            justify-content: center;
-        }
-        .stTabs [role="tab"] {
-            background: #1C1F26;
+        div.stButton > button {
+            background-color: #00b4d8;
             color: white;
             border-radius: 10px;
-            padding: 10px 20px;
+            height: 3em;
+            width: 100%;
+            font-size: 16px;
+            border: none;
+        }
+        div.stButton > button:hover {
+            background-color: #0096c7;
+            color: #ffffff;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: #1a1d24;
+            color: #ffffff;
+            border-radius: 8px;
             margin-right: 5px;
         }
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: #0077b6;
+        }
         .stTabs [aria-selected="true"] {
-            background-color: #00FFCC !important;
-            color: #000000 !important;
-            font-weight: bold !important;
-        }
-        div[data-testid="stExpander"] {
-            background-color: #161A22;
-            border-radius: 10px;
-            border: 1px solid #00FFCC;
-            padding: 10px;
-        }
-        .stButton>button {
-            background-color: #00FFCC;
-            color: black;
-            border-radius: 10px;
-            font-weight: bold;
+            background-color: #00b4d8;
+            color: #ffffff;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------
-# HELPER FUNCTIONS
-# ---------------------------------------------------------------
-def calculate_grade_point(marks_obtained, total_marks):
-    """Convert percentage to grade points"""
-    percentage = (marks_obtained / total_marks) * 100
-    if percentage >= 85:
-        return 4.0
-    elif percentage >= 80:
-        return 3.7
-    elif percentage >= 75:
-        return 3.3
-    elif percentage >= 70:
-        return 3.0
-    elif percentage >= 65:
-        return 2.7
-    elif percentage >= 60:
-        return 2.3
-    elif percentage >= 55:
-        return 2.0
-    elif percentage >= 50:
-        return 1.7
-    else:
-        return 0.0
+st.title("🎓 GPA & CGPA Calculator (Dark Mode)")
 
+# -----------------------------
+# Main Functionality
+# -----------------------------
+tabs = st.tabs(["🎯 New GPA Calculation", "📘 Use Previous GPA Data"])
 
-def calculate_gpa(marks, totals, credits):
-    """Calculate semester GPA"""
-    total_points = sum(calculate_grade_point(m, t) * c for m, t, c in zip(marks, totals, credits))
-    total_credits = sum(credits)
-    if total_credits == 0:
-        return 0
-    return round(total_points / total_credits, 2)
+with tabs[0]:
+    st.subheader("🔹 Enter Semester Details")
+    num_semesters = st.number_input("Enter the number of semesters completed (including current):", min_value=1, step=1)
 
+    gpas = []
+    credits_list = []
+    summary_data = []
 
-def calculate_cgpa(all_gpas, all_credits):
-    """Weighted average of all semester GPAs"""
-    total_weighted_points = sum(g * c for g, c in zip(all_gpas, all_credits))
-    total_credits = sum(all_credits)
-    if total_credits == 0:
-        return 0
-    return round(total_weighted_points / total_credits, 2)
+    for i in range(int(num_semesters)):
+        st.markdown(f"<h4 style='color:#00b4d8;'>Semester {i+1}</h4>", unsafe_allow_html=True)
+        num_subjects = st.number_input(f"Number of subjects in Semester {i+1}:", min_value=1, step=1, key=f"subs_{i}")
 
+        marks, total_marks, credits = [], [], []
 
-# ---------------------------------------------------------------
-# MAIN APP
-# ---------------------------------------------------------------
-st.title("🎓 GPA & CGPA Calculator (Dark Theme Edition)")
-st.markdown("Easily calculate GPA for each semester and your overall CGPA — with visual progress tracking!")
+        for j in range(int(num_subjects)):
+            st.write(f"**Subject {j+1}:**")
+            marks.append(st.number_input(f"Marks obtained (Subject {j+1})", min_value=0.0, step=1.0, key=f"marks_{i}_{j}"))
+            total_marks.append(st.number_input(f"Total marks (Subject {j+1})", min_value=1.0, value=100.0, step=1.0, key=f"total_{i}_{j}"))
+            credits.append(st.number_input(f"Credit hours (Subject {j+1})", min_value=1.0, step=1.0, key=f"credit_{i}_{j}"))
 
-num_semesters = st.number_input("Enter total number of semesters completed:", min_value=1, max_value=12, step=1)
+        gpa = calculate_gpa(marks, total_marks, credits)
+        total_credit = sum(credits)
+        gpas.append(gpa)
+        credits_list.append(total_credit)
 
-semester_gpas = []
-semester_credits = []
+        st.success(f"🎓 GPA for Semester {i+1}: **{gpa}**")
 
-for sem in range(1, num_semesters + 1):
-    with st.expander(f"📘 Semester {sem} Details", expanded=False):
-        entry_type = st.radio(
-            f"How would you like to enter data for Semester {sem}?",
-            ["Enter subjects manually", "Enter GPA directly"],
-            key=f"type_{sem}"
+        summary_data.append({
+            "Semester": f"Semester {i+1}",
+            "GPA": gpa,
+            "Credits": total_credit
+        })
+
+    if st.button("Calculate CGPA"):
+        cgpa = calculate_cgpa(gpas, credits_list)
+        st.markdown("---")
+        st.success(f"🏆 Your overall CGPA up to Semester {num_semesters} is: **{cgpa}**")
+
+        # Summary Table
+        df_summary = pd.DataFrame(summary_data)
+        df_summary["Cumulative CGPA"] = [calculate_cgpa(gpas[:i+1], credits_list[:i+1]) for i in range(len(gpas))]
+        st.dataframe(df_summary, use_container_width=True)
+
+        # GPA Trend Chart
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=df_summary["Semester"],
+            y=df_summary["GPA"],
+            mode='lines+markers',
+            line=dict(color='#00b4d8', width=3),
+            marker=dict(size=10, color='#48cae4')
+        ))
+        fig.update_layout(
+            title="📈 GPA Trend Over Semesters",
+            xaxis_title="Semester",
+            yaxis_title="GPA",
+            paper_bgcolor="#0e1117",
+            plot_bgcolor="#0e1117",
+            font=dict(color="#fafafa"),
+            height=400
         )
+        st.plotly_chart(fig, use_container_width=True)
 
-        if entry_type == "Enter subjects manually":
-            num_subjects = st.number_input(f"Number of subjects in Semester {sem}:", min_value=1, step=1, key=f"subs_{sem}")
-            marks, totals, credits = [], [], []
+        # Performance Summary
+        if len(gpas) > 1:
+            if gpas[-1] > gpas[-2]:
+                st.info("📈 Great job! Your GPA improved this semester.")
+            elif gpas[-1] < gpas[-2]:
+                st.warning("📉 Your GPA dropped this semester — keep pushing!")
+            else:
+                st.info("➖ Your GPA remained consistent this semester.")
 
-            for i in range(num_subjects):
-                st.markdown(f"**Subject {i+1}:**")
-                m = st.number_input(f"Marks obtained (Subject {i+1})", min_value=0.0, key=f"m_{sem}_{i}")
-                t = st.number_input(f"Total marks (Subject {i+1})", min_value=1.0, key=f"t_{sem}_{i}")
-                c = st.number_input(f"Credit hours (Subject {i+1})", min_value=1.0, key=f"c_{sem}_{i}")
-                marks.append(m)
-                totals.append(t)
-                credits.append(c)
 
-            gpa = calculate_gpa(marks, totals, credits)
-            total_credits = sum(credits)
-            st.success(f"📗 GPA for Semester {sem}: **{gpa}**")
-            semester_gpas.append(gpa)
-            semester_credits.append(total_credits)
+# -----------------------------
+# Option 2: Use Previous GPA
+# -----------------------------
+with tabs[1]:
+    st.subheader("📘 Enter Previous GPA and Credits")
 
-        else:
-            gpa = st.number_input(f"Enter GPA for Semester {sem}:", min_value=0.0, max_value=4.0, key=f"gpa_{sem}")
-            total_credits = st.number_input(f"Enter total credit hours for Semester {sem}:", min_value=1.0, key=f"cred_{sem}")
-            semester_gpas.append(gpa)
-            semester_credits.append(total_credits)
+    num_prev = st.number_input("Enter number of previous semesters:", min_value=1, step=1, key="prev_sem")
+    gpas_prev = []
+    credits_prev = []
 
-# ---------------------------------------------------------------
-# RESULTS SECTION
-# ---------------------------------------------------------------
-if st.button("🔹 Calculate Final CGPA"):
-    cgpa = calculate_cgpa(semester_gpas, semester_credits)
-    st.markdown("---")
-    st.subheader("📊 Results Summary")
+    for i in range(int(num_prev)):
+        gpas_prev.append(st.number_input(f"GPA for Semester {i+1}:", min_value=0.0, max_value=4.0, step=0.01, key=f"gpa_prev_{i}"))
+        credits_prev.append(st.number_input(f"Total Credit Hours for Semester {i+1}:", min_value=1.0, step=1.0, key=f"cred_prev_{i}"))
 
-    # Create summary DataFrame
-    df = pd.DataFrame({
-        "Semester": [f"Semester {i+1}" for i in range(num_semesters)],
-        "GPA": semester_gpas,
-        "Credit Hours": semester_credits
-    })
-    df["Cumulative CGPA"] = [calculate_cgpa(semester_gpas[:i+1], semester_credits[:i+1]) for i in range(num_semesters)]
-
-    st.dataframe(df, use_container_width=True)
-
-    st.metric(label="🎯 Final CGPA", value=cgpa)
-
-    # Trend detection
-    if len(semester_gpas) > 1:
-        if semester_gpas[-1] > semester_gpas[-2]:
-            st.success("📈 Great! Your GPA improved this semester.")
-        elif semester_gpas[-1] < semester_gpas[-2]:
-            st.warning("📉 Your GPA decreased this semester. Stay motivated and aim higher!")
-        else:
-            st.info("➖ Your GPA remained the same as last semester.")
-
-    # Plot GPA Trend
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=[f"Sem {i+1}" for i in range(num_semesters)],
-        y=semester_gpas,
-        mode="lines+markers",
-        line=dict(color="#00FFCC", width=3),
-        marker=dict(size=10, color="#00FFFF"),
-        name="Semester GPA"
-    ))
-    fig.update_layout(
-        title="🎓 GPA Trend Across Semesters",
-        xaxis_title="Semester",
-        yaxis_title="GPA",
-        yaxis=dict(range=[0, 4.2]),
-        paper_bgcolor="#0E1117",
-        plot_bgcolor="#161A22",
-        font=dict(color="white")
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.balloons()
+    if st.button("Calculate CGPA from Previous Data"):
+        cgpa_prev = calculate_cgpa(gpas_prev, credits_prev)
+        st.success(f"🏆 Your CGPA based on previous semesters is: **{cgpa_prev}**")
